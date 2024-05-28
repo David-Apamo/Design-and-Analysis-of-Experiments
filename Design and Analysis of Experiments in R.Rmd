@@ -1,0 +1,637 @@
+---
+title: "Design and Analysis of Experiments"
+author: "David"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r}
+# load packages
+suppressMessages(
+  {
+    library(tidyverse)
+    library(agricolae)
+    library(report)
+  }
+)
+```
+
+
+# 1. Analysis of a Completely Randomised Design (CRD)
+
+```{r}
+## Comparing if different foodstuffs given to chicks significantly affect their weights
+
+# Create a vector containing the weights of chicks
+weights <- c(55,49,42,21,52,61,112,30,89,63,
+             42,97,81,95,92,169,137,169,85,154)
+
+# create another vector containing the various foodstuffs. 
+Foodstuffs <- c("A","A","A","A","A","B","B","B","B","B",
+                "C","C","C","C","C","D","D","D","D","D")
+
+# create a data frame of the weights and foodstuffs
+Foodstuff_data <- data.frame(weights, Foodstuffs)
+
+# fit a CRD model
+CRD <- aov(weights ~ Foodstuffs, data = Foodstuff_data)
+
+# model summary
+summary(CRD)
+```
+
+Since the p-value(0.000218) is much less than alpha(0.05), I reject Ho at 5% level of significance and conclude that the foodstuffs differ significantly with regards to increase in weight of chicks.
+
+```{r}
+# carry out post-hoc multiple comparison test using Least Significant Difference test
+d <- LSD.test(CRD, "Foodstuffs", DFerror = 16, MSerror = 722, 
+              alpha = 0.05, console = TRUE)
+
+# print LSD test results
+d
+```
+
+Foodstuffs C and B have almost the same effect, same as B and A. D is statistically different from the other foodstuffs. D has the highest mean weight, hence it is the best and is the one which should be fed to the chicks.
+
+```{r}
+# visualize the result
+plot(d, las = 1, horiz = TRUE)
+```
+
+From this distribution, weights of chicks which were fed on foodstuff D varies differently from the others.
+
+```{r}
+# use Tukey's HSD test
+HSD <- TukeyHSD(CRD, conf.level = .95)
+HSD
+```
+
+Foodstuffs D and A are significantly different, same as D and B and also D and C, since their p-values are less than 0.05. I therefore conclude that foodstuff D is significantly different from C, B and A.
+
+```{r}
+# visualize the confidence intervals
+plot(HSD, las = 1)
+```
+
+This distribution shows that B&A, C&A, C&B differ from D&A, D&B, D&C.
+
+```{r}
+## test whether the mean sales volume for 3 new menu items are all equal.
+
+# first create the data
+Sales <- c(31,31,45,21,42,32,27,28,29,18,36,17,24,31,46,48,46,40)
+Items <- rep(c("Item1","Item2","Item3"), each = 6)
+Item_sales <- data.frame(Sales, Items)
+
+# view the first few observations of the Item_Sales data set
+head(Item_sales)
+
+# fit ANOVA model
+Items_model <- aov(Sales ~ Items, data = Item_sales)
+# model summary
+summary(Items_model)
+```
+
+Since the p-value(0.0506) is greater than alpha(0.05), I fail to reject Ho at 5% level of significance and conclude that the mean sales volume for the 3 new menu items are all equal. (Unless there's a statistical power that says otherwise.)
+
+```{r}
+## Analysis of a CRD and use of Duncan's multiple range test and Student-Newman-Keuls(SNK) test for post hoc tests.
+
+# load the sweet potato data set
+data("sweetpotato")
+
+# view the structure of the data set
+glimpse(sweetpotato)
+```
+
+The sweet potato dataset contains 12 observations of 2 variables. Virus is a categorical (factor) variable while yield is numeric.
+
+```{r}
+# clean the data
+
+# check if the data has any missing values
+map_dbl(sweetpotato, ~sum(which(is.na(.))))
+
+# check for duplicated observations
+sum(duplicated(sweetpotato))
+```
+
+The data is clean, has no missing values or duplicates.
+
+```{r}
+# carry out ANOVA to assess whether the viruses had the same effect on potato yield
+sp_model <- aov(yield ~ virus, data = sweetpotato)
+# model summary
+summary(sp_model)
+```
+
+Since the p-value = 0.000733 is much less than alpha(0.05), I reject Ho at 5% significance level and conclude that the viruses have significantly different effects on potato yield.
+
+```{r}
+# carry out post-hoc multiple comparison test using Duncan's new multiple range test
+dcun_test <- duncan.test(sp_model, "virus", alpha = 0.05, 
+                         group = TRUE, console = TRUE)
+dcun_test
+```
+
+Viruses oo and ff have almost the same effect on potato yield but their effects significantly differ from the effects of viruses cc and fc.
+
+```{r}
+# visualize the variations in yields
+plot(dcun_test, horiz = TRUE, las = 1)
+plot(dcun_test, variation = "IQR", horiz = TRUE)
+```
+
+
+The variations and IQR pots also show that viruses oo and ff have almost the same effect on sweet potato yields, and differs significantly from viruses cc and fc.
+
+```{r}
+# use Student-Newman-Keuls(SNK) test
+snk_test <-  SNK.test(sp_model, "virus", console = TRUE, 
+                      main =  "Yield of sweetpotato dealt with different virus")
+snk_test
+
+# visualize SNK.test results
+plot(snk_test, las = 1, horiz = TRUE)
+```
+
+SNK test gives the same results as Duncan's multiple range test.
+
+
+# 2. Analysis of Randomised Block Design (RBD)
+
+```{r}
+## Given data on the quantity of fertilizer used during planting and the amount of water sprayed for the crops. Test if there's significant difference in yield produced
+
+# create a vector containing fertilizer quantities
+Fertilizer <- c("low","high","low","high")
+# create a vector containing quantities of water applied
+Irrigation <- rep(c("low","high"), each = 2)
+# create a vector containing yield quantities
+Yield <- c(20,40,30,52)
+
+# create a data frame for the yields, fertilizer and irrigation
+YieldData <- data.frame(Yield, Fertilizer, Irrigation)
+```
+
+```{r}
+# fit the model
+YieldModel <- aov(Yield ~ Fertilizer + Irrigation, data = YieldData)
+# model summary
+summary(YieldModel)
+```
+
+* The Fertilizer quantity applied had a significant effect on crop yield (p-value < 0.05)
+* Irrigation (quantity of water applied) on the other hand had no significant effect on crop yield (p-value > 0.05)
+
+I used the irrigation quantity as my blocks. I won't carry post-hoc analysis for this example.
+
+```{r}
+## Another example on RBD
+
+# first create the dataset
+
+# create a vector of values
+Values <- c(24.7,20.6,27.7,16.2,16.2,24.9,27.3,28.8,22.7,15.0,17.0,22.5,
+            38.5,39.5,36.8,19.6,15.4,26.3,28.5,31.0,34.9,14.1,17.7,22.6)
+
+# create a vector of treatments
+Treatments <- rep(c("T1","T2","T3","T4","T5","T6"), 4)
+# create a vector of blocks
+Blocks <- rep(c("B1","B2","B3","B4"), each = 6)
+
+# combine the vectors into a data frame
+RBD_data <- data.frame(Values, Treatments, Blocks)
+# view the first few obs
+head(RBD_data)
+
+# fit the model
+RBD <- aov(Values ~ Treatments + Blocks, data = RBD_data)
+# model summary
+summary(RBD)
+```
+
+* Since the p-value associated with treatments is much less than alpha(0.05), I reject Ho at 5% significance level and conclude that the treatments differ significantly.
+* Since the p-value associated with blocks is also less than beta(0.05), I reject Ho at 5% significance level and conclude that the blocks differ significantly. This makes sense because in a Randomized Block Design, the blocks should be homogeneous within themselves but heterogeneous among themselves.
+
+```{r}
+# carry out LSD-test on treatments
+d2 <- LSD.test(RBD, "Treatments", DFerror = 15, MSerror = 15.31, 
+               alpha = 0.05, group = TRUE, console = TRUE)
+
+# view LSD-test results
+d2
+```
+
+* Paired treatments 2&3, 1&2, 1&6, 2&6, 4&5 have almost the same effect.
+* Paired treatments 3&5, 3&4, 2&5, 2&4, 1&5, 1&4, 6&5 and 6&4 are significantly different.
+
+
+# 3. Analysis of Latin Square Design (LSD)
+
+```{r}
+
+## Given productivity data based on 5 different kinds of fertilizer, 5 kinds of tillage, and 5 kinds of seeds. Test if there are significant differences between fertilizer, tillage and seed types, with regards to the quantity of yield produced. The data is organized in a Latin square design.
+
+# First create a data frame with all the attributes
+Fertilizer <- rep(c("F1","F2","F3","F4","F5"),5)
+
+Tillage <- rep(c("A","B","C","D","E"), each = 5)
+
+Seed <- c("a","e","c","b","d","c","b","a","d","e",
+          "b","c","d","e","a","d","a","e","c","b",
+          "e","d","b","a","c")
+
+Yield <- c(42,45,41,56,47,47,54,46,52,49,55,52,57,
+           49,45,51,44,47,50,54,44,50,48,43,46)
+
+Production_data <- data.frame(Tillage, Fertilizer, Seed, Yield)
+```
+
+```{r}
+# create matrices representing the attributes
+
+# Treatments
+matrix(Production_data$Tillage,5,5)
+```
+```{r}
+# Fertilizer types
+matrix(Production_data$Fertilizer,5,5)
+```
+```{r}
+# Seed types
+matrix(Production_data$Seed,5,5)
+```
+```{r}
+# Yields
+matrix(Production_data$Yield,5,5)
+```
+
+```{r}
+# carry out anova
+Latin_sq_design <- aov(Yield ~ Tillage + Fertilizer + Seed, data = Production_data)
+# model summary
+summary(Latin_sq_design)
+```
+
+* Since the p-value associated with tillage is less than 0.05, I reject Ho at 5% level of significance and conclude that the different kinds of tillage used were significantly different with regards to production yields.
+* Since the p-value associated with Fertilizers is highly greater than 0.05, I fail to reject Ho at 5% level of significance and conclude that the fertilizers do not differ significantly with regards to production yields.
+* Since the p-value associated with Seeds is much less than 0.05, I reject Ho at 5% significance level and conclude that the seed types differ significantly with regards to production yields.
+
+```{r}
+# carry out post-hoc multiple comparison test on Tillage and seed types using Tukey's HSD test
+TukeyHSD(Latin_sq_design, conf.level=.95)
+```
+
+* Based on the Tukey's HSD test:
+  * Tillage C&A, E&C differ significantly.
+  * Seed types b&a, d&a, c&b, e&b also differ significantly.
+  * All the fertilizer types had almost the same effect with regards to the quantity of yields produced.
+
+
+# 4. Analysis of Factorial Designs (Designs with main and interaction effects)
+
+```{r}
+# Load the Tooth Growth data
+data("ToothGrowth")
+
+# View structure of the data
+ToothGrowth |> glimpse()
+```
+
+The data has 60 observations of 3 variables. Length and dose are numeric while supplement is a factor with two levels.
+
+```{r}
+# Factor the variable dose
+ToothGrowth[["dose"]] <- factor(ToothGrowth[["dose"]], 
+                                levels = c(0.5, 1, 2), 
+                                labels = c("low","medium","high") )
+```
+
+```{r}
+# Quickly explore the data
+ToothGrowth |> skimr::skim()
+```
+
+There are no missing values in the data. The variable supplement has 2 levels while dosage has 3 levels. The factor variables are evenly distributed. Tooth length has a mean and standard deviation of 18.81 and 7.65 respectively.
+
+```{r}
+# Visualize the distribution of tooth length, characterized by supplement and dosage
+boxplot(len ~ supp * dose, data = ToothGrowth, 
+        ylab="Tooth Length", 
+        main="Boxplots of Tooth Growth Data")
+
+```
+
+Generally, there seems to be differences in the means of tooth length based on the dosage and supplement types, except for the supplement given at high dosage.
+
+```{r}
+# interaction plot
+with(ToothGrowth, interaction.plot(x.factor = dose, 
+                                   trace.factor = supp, response = len, 
+                                   col = c("red","blue")))
+```
+
+* There seems to be no difference between supplements at high dose.
+* There seems to be a main effect of dose i.e higher dose results in higher tooth length
+* Also, there seems to be a main effect of supplement i.e there is a difference in tooth growth between VC and OJ supplements at low and medium dosage.
+
+```{r}
+# fit ANOVA Model
+ToothGrowth_model <- aov(len ~ supp * dose, data = ToothGrowth)
+summary(ToothGrowth_model)
+```
+
+The main effects of supplement and dosage are all significant, same as the interaction effect between supplement and dosage. (p < 0.05)
+
+```{r}
+# carry out post-hoc analysis using Tukey's HSD test
+TukeyHSD(ToothGrowth_model)
+```
+
+* All the simple main effects are statistically significant (p-value < 0.05)
+* All the interaction effects are statistically significant, except (VC:medium-OJ:low), (OJ:high-OJ:medium) , (VC:high-OJ:medium) and (VC:high-OJ:high).
+
+```{r}
+# visualize the difference in means and Confidence Intervals
+plot(TukeyHSD(ToothGrowth_model))
+```
+
+```{r}
+## Assessing the effects of material type and temperature on battery life
+
+# creating the data
+
+# create a vector of values for battery life
+Values <- c(130,74,155,180,34,80,40,75,20,82,70,58,150,159,
+            188,126,136,106,122,115,25,58,70,45,138,168,110,
+            160,174,150,120,139,96,82,104,60)
+
+# create a vector containing the different material types
+Material_type <- rep(c("1","2","3"), each = 12)
+
+# create a vector containing the different temperature levels
+Temp <- rep(c("15","15","15","15","70","70","70","70","125","125",
+              "125","125"),3)
+
+# combine the vectors into a data frame
+Battery_data <- data.frame(Values, Material_type, Temp)
+```
+
+```{r}
+# fit the model
+BattModel <- aov(Values ~ Material_type*Temp, data = Battery_data)
+# model summary
+summary(BattModel)
+```
+
+The main effects of material type and temperature are statistically significant at 5% level of significance, same as the interaction effect between material and temperature (p < 0.05).
+
+```{r}
+## Model interpretation by the report() function from report package
+library(report)
+BattModel |> report()
+```
+```{r}
+# plot the interaction curve
+# first convert the character variables to factors
+df <- data.frame(Values, factor(Material_type), factor(Battery_data$Temp, levels = c(15,70,125)))
+
+# plot
+interaction.plot(
+  x.factor = df$factor.Battery_data.Temp..levels...c.15..70..125..,
+  trace.factor = df$factor.Material_type.,
+  response = df$Values,
+  fun = median,
+  ylab = "Average battery life",
+  xlab = "Temperature Level",
+  trace.label = "Materia Type",
+  col = c("#0198f9","#f95801","#f92676"),
+  lwd = 3
+)
+```
+
+* For material type 1, increase in temperature from 15 to 70 reduces the average battery life steadily from 140 to about 58. Further increase in temperature from 70 to 125 slightly increases the average battery life from 58 to about 62.
+* For material type 2, increase in temperature from 15 all the way to 125 reduces the average battery life from about 155 to 50.
+* For material type 3, increase in temperature from 15 to 70 has a very little effect on the average battery life. Further increase in temperature from 70 to 125 reduces the average battery life from about 150 to 90.
+
+I can say that the best combination that guarantees a longer average battery life are; a temperature of 15 and material type 2.
+
+```{r}
+# post-hoc multiple range test using Tukey's HSD test
+TukeyHSD(BattModel)
+```
+
+* There are significant differences between material types 3&1.
+* There is no significant difference between material types 1&2 and 2&3.
+* There are significant differences between all the 3 temperature levels.
+* And just as I saw from the interaction plot, material type 2 at temperature 15 vs material type 2 at temperature 125 has the smallest p-value, hence is highly significant. This implies that using material type 2 at temperature 15 produces batteries with the best life span while using material type 2 at temperature 125 produces batteries with the shortest  life span.
+
+```{r}
+## Assessing the effects of reactant and catalyst quantities on yield conversion
+# 2 by 2 design, replicated 3 times
+
+# create the data
+Reactant <- rep(c("low","high"), times = 6)
+Catalyst <- rep(c("low","low","high","high"), times = 3)
+Replication <- rep(c("1","2","3"), each = 4)
+YieldConvertion <- c(28,36,18,31,25,32,19,30,27,32,23,29)
+ChemicalData <- data.frame(Reactant, Catalyst, Replication, YieldConvertion)
+```
+
+```{r}
+# carry out ANOVA using CRD
+ChemModel <- aov(YieldConvertion ~ Reactant * Catalyst, data = ChemicalData)
+# model summary
+summary(ChemModel)
+```
+
+* The main effect of Reactant is statistically significant and large (F(1, 8) = 53.19, p < .001)
+* The main effect of Catalyst is also statistically significant and large (F(1, 8) = 19.15, p = 0.002)
+* The interaction between Reactant and Catalyst is not statistically significant (F(1, 8) = 2.13, p = 0.183)
+
+```{r}
+# carry out ANOVA using RBD
+ChemModel_2 <- aov(YieldConvertion ~ Replication + Reactant * Catalyst, data = ChemicalData)
+# model summary
+summary(ChemModel_2)
+```
+
+* I used Replications as blocks and they don't differ significantly at 5% level of significance (Of course replications aren't suppose to differ). Replications are used to attain precision.
+* The main effect of Reactant is statistically significant and large (F(1,6) = 50.34, p < .001).
+* The main effect of Catalyst is also statistically significant and large (F(1,6) = 18.12, p = 0.005).
+* The interaction between Reactant and Catalyst is not statistically significant (F(1, 6) = 2.01, p = 0.206).
+
+```{r}
+# post-hoc multiple range test using Tukey's HSD test
+TukeyHSD(ChemModel_2)
+```
+
+* The Tukey's HSD test confirms that the replications are not statistically different and this is good.
+* There are significant differences between the levels of reactant and catalyst.
+* All the interaction effects are statistically significant, except (high Reactant amount at low Catalyst amount vs high Reactant amount at high Catalyst amount) and (low Reactant amount at low Catalyst amount vs high Reactant amount at high Catalyst amount).
+
+```{r}
+## Assess if there is a statistical difference in the quantity of Dirt removed when two detergents are used, each at different temperatures
+
+# Another 2 by 2 factorial design
+
+# first create the data
+Temperature <- rep(c("warm","hot"), each = 5, times = 2)
+Detergent <- rep(c("X","Y"), each = 10)
+Dirt_removed <- c(14,16,15,12,17,18,19,17,19,20,
+                  17,19,20,17,22,21,20,18,22,23)
+DirtRemovalData <- data.frame(Detergent, Temperature, Dirt_removed)
+```
+```{r}
+# carry out ANOVA
+DirtModel <- aov(Dirt_removed ~ Detergent * Temperature, data = DirtRemovalData)
+# model summary
+summary(DirtModel)
+```
+
+* The main effect of Detergent is statistically significant and large (F(1,16) = 15.52, p = 0.001).
+* The main effect of Temperature is statistically significant and large (F(1, 16) = 11.88, p = 0.003).
+* The interaction between Detergent and Temperature is not statistically significant (F(1,16) = 1.52, p = 0.236).
+
+```{r}
+# post-hoc multiple range test using Tukey's HSD test
+TukeyHSD(DirtModel)
+```
+
+* There are significant differences between the two detergents and the three temperature levels with regards to the quantity of dirt removed.
+* Detergent X when used at warm temperature and also at hot temperature removes significantly different quantity of dust.
+* Detergent X when used at warm temperature vs detergent Y when used at hot temperature, removes significantly different quantity of dust.
+* Detergent Y when used at warm temperature vs Detergent X when used at warm temperature, removes significantly different quantity of dust.
+
+```{r}
+## Ultra Filtration Experiment (2 by 2 replicated 4 times)
+
+# first create a data frame with the factors and values
+Additive <- rep(c("low","high"),each = 4, times = 2)
+Time <- rep(c("1","3"), each = 8) # the no. of times additive was applied
+Quantity <- c(69.6,71.5,70,69,91,93,93.2,87.2,80,81.6,83,84.3,92.3,93.4,
+                 88.5,95.6)
+UltraData <- data.frame(Additive, Time, Quantity)
+```
+```{r}
+# carry out ANOVA
+UltraFiltrationModel <- aov(Quantity ~ Additive * Time, data = UltraData)
+summary(UltraFiltrationModel)
+```
+
+* The main effect of Additive is statistically significant and large (F(1,12) = 185.59, p < .001).
+* The main effect of Time is statistically significant and large (F(1, 12) = 34.78, p < .001).
+* The interaction between Additive and Time is statistically significant and large (F(1,12) = 22.30, p < .001).
+
+```{r}
+# post-hoc multiple range test using Tukey's HSD test
+TukeyHSD(UltraFiltrationModel)
+```
+
+* There are significant differences between the amount of additive applied and the number of times the additive was applied with regards to the quantity of ultra-filtration achieved.
+* High amount of additive when applied 3 times and also when applied only once, doesn't result in a significant difference in quantity of ultra-filtration achieved.
+* All the remaining interaction effects differ significantly with regards to the quantity of ultra-filtration achieved.
+
+
+# 5. Split-Plot Design
+
+```{r}
+## Assess if pulp preparation method and different temperature levels have significant effect on the yield of paper production
+
+## The experiment was conducted in a split-plot design
+
+# first create the data frame
+
+# create a vector containing block labels
+Block <- rep(c("1","2","3"), each = 12)
+# create a vector containing the different types of pulp
+Pulp <- rep(c("1","2","3"), times = 12)
+# create a vector containing the different temperature levels
+Tmp <- rep(c("200","225","250","275"), each = 3, times = 3)
+# create a vector containing the paper yields
+paper_yield <- c(30,34,29,35,41,26,37,38,33,36,42,36,28,31,31,32,36,30,
+                 40,42,32,41,40,40,31,35,32,37,40,34,41,39,39,40,44,45)
+
+# combine the vectors into a data frame
+PaperData <- data.frame(Block, Pulp, Tmp, paper_yield)
+```
+```{r}
+# carry out ANOVA
+PaperModel <- sp.plot(block = Block, pplot = Pulp, splot = Tmp, Y = paper_yield)
+# have a model summary
+summary(PaperModel)
+```
+
+* Pulp preparation method has a significant effect on paper yield (F(2, 18) = 9.76, p = 0.0485).
+* Temperature levels also has a significant effect on paper yield. (F(3, 18) = 9.76, p < .001).
+* The interaction effect between pulp preparation method and the temperature levels is also significant (F(6,18) = 3.15, p = 0.027).
+
+```{r}
+# carry out post-hoc multiple comparison tests on treatments using LSD test
+
+# specify the first error degrees of freedom
+Error_df_a <- PaperModel$gl.a
+Error_df_a
+# specify the second error degrees of freedom
+Error_df_b <- PaperModel$gl.b
+Error_df_b
+# specify the first mean square error
+MSE_a <- PaperModel$Ea
+MSE_a
+# specify the second mean square error
+MSE_b <- PaperModel$Eb
+MSE_b
+```
+```{r}
+# test for difference in means between the three Pulp preparation methods
+lsd1 <- LSD.test(y = paper_yield,
+                 trt = Pulp,
+                 DFerror = Error_df_a,
+                 MSerror = MSE_a,
+                 alpha = 0.05,
+                 p.adj = "bonferroni",
+                 group = TRUE,
+                 console = TRUE)
+lsd1
+```
+
+The three types of Pulp preparation methods do not differ significantly with regards to paper yield.
+
+```{r}
+# test for difference in mean between the three Temperature levels used
+lsd2 <- LSD.test(y = paper_yield,
+                 trt = Tmp,
+                 DFerror = Error_df_b,
+                 MSerror = MSE_b,
+                 alpha = 0.05,
+                 p.adj = "bonferroni",
+                 group = TRUE,
+                 console = TRUE)
+lsd2
+```
+
+* Temperature levels 250 and 275 have almost the same effect on paper yield, but are significantly different from temperature levels 200 and 225.
+
+```{r}
+# plot Yield variation by Pulp preparation method
+plot(lsd1,
+     xlab = "Pulp preparation method",
+     ylab = "Yield",
+     las = 1
+     )
+```
+
+There is no difference in yield variations based on the three pulp preparation methods.
+
+```{r}
+# plot Yield variation by Temperature level
+plot(lsd2,
+     xlab = "Temperature level",
+     ylab = "Yield",
+     las = 1
+     )
+```
+
+Temperature levels 250 and 275 have almost the same effect on paper yield, but are significantly different from temperature levels 200 and 225.
+
